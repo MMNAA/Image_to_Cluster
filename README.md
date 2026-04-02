@@ -78,7 +78,110 @@ Difficulté : Facile (~30 minutes)
 ---------------------------------------------------
 **Complétez et documentez ce fichier README.md** pour nous expliquer comment utiliser votre solution.  
 Faites preuve de pédagogie et soyez clair dans vos expliquations et processus de travail.  
-   
+
+Image to Cluster – Déploiement Kubernetes avec Packer et Ansible
+
+Objectif
+
+L’objectif de ce projet est de mettre en place une chaîne DevOps complète permettant de construire, déployer et exposer une application web sur un cluster Kubernetes. Pour cela, nous utilisons Packer afin de créer une image Docker personnalisée, puis Ansible pour automatiser son déploiement sur un cluster k3d.
+
+---
+
+Architecture
+
+Le fonctionnement global repose sur les étapes suivantes :
+
+- Un fichier `index.html` sert de contenu applicatif
+- Packer permet de créer une image Docker Nginx personnalisée
+- Cette image est importée dans un cluster Kubernetes k3d
+- Ansible automatise le déploiement de l’application
+- Kubernetes expose le service pour le rendre accessible
+
+---
+
+Étapes de réalisation
+
+Création du cluster Kubernetes
+
+Un cluster Kubernetes a été créé à l’aide de k3d avec un nœud principal et deux nœuds workers, permettant de simuler un environnement distribué.
+
+```bash
+k3d cluster create lab --servers 1 --agents 2
+kubectl get nodes
+```
+2. Création de l’image avec Packer
+
+Une image Docker personnalisée a été construite à partir de l’image officielle Nginx. Le fichier index.html présent dans le projet est injecté dans l’image afin de remplacer la page par défaut.
+```
+packer {
+  required_plugins {
+    docker = {
+      version = ">= 1.0.0"
+      source  = "github.com/hashicorp/docker"
+    }
+  }
+}
+
+source "docker" "nginx" {
+  image  = "nginx:latest"
+  commit = true
+}
+
+build {
+  sources = ["source.docker.nginx"]
+
+  provisioner "file" {
+    source      = "index.html"
+    destination = "/usr/share/nginx/html/index.html"
+  }
+}
+```
+L’image est ensuite construite avec les commandes suivantes :
+```
+packer init .
+packer build nginx.pkr.hcl
+```
+Cette étape permet de créer une image contenant le contenu personnalisé.   
+
+3. Import de l’image dans k3d
+
+L’image Docker étant locale, elle doit être importée dans le cluster k3d afin d’être utilisable par Kubernetes.
+```
+k3d image import nginx:latest -c lab
+```
+
+4. Déploiement avec Ansible
+
+Le déploiement de l’application est automatisé à l’aide d’un playbook Ansible qui exécute des commandes Kubernetes.
+```
+- name: Deploy nginx
+  hosts: localhost
+  connection: local
+
+  tasks:
+    - name: Create deployment
+      command: kubectl create deployment nginx-custom --image=nginx:latest
+```
+Exécution du playbook :
+```
+ansible-playbook deploy.yml
+```
+Cette étape permet de créer un déploiement Kubernetes basé sur l’image personnalisée.
+
+5. Exposition du service
+
+Afin de rendre l’application accessible, le déploiement est exposé via un service Kubernetes.
+```
+kubectl expose deployment nginx-custom --type=NodePort --port=80
+kubectl port-forward svc/nginx-custom 8080:80
+```
+
+Le port 8080 est ensuite utilisé pour accéder à l’application depuis l’environnement Codespaces.
+
+Vérification
+
+Une fois le déploiement terminé, l’application est accessible via le port 8080. Le bon fonctionnement est validé lorsque la page affichée correspond au contenu du fichier index.html personnalisé et non à la page par défaut de Nginx.
+
 ---------------------------------------------------
 Evaluation
 ---------------------------------------------------
