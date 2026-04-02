@@ -1,0 +1,7 @@
+- name: Deploy nginx
+  hosts: localhost
+  connection: local
+
+  tasks:
+    - name: Create deployment
+      command: kubectl create deployment nginx-custom --image=nginx:latest
